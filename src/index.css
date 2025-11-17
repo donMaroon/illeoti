@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+.ant-popover .ant-popover-inner {
+    background-color: transparent;
+        box-shadow: none;
+        padding: 4px 8px;
+}

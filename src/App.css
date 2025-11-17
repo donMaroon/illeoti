@@ -1,0 +1,64 @@
+input::placeholder {
+  color: #9b9b9b;
+}
+
+body {
+  font-family: "Lato", sans-serif !important;
+}
+
+.lato {
+  font-family: "Lato", sans-serif;
+}
+
+.bg-primary {
+  background-color: #80011d;
+}
+.bg-secondary {
+  background-color: #5b0115;
+}
+
+.text-primary {
+  color: #80011d;
+}
+
+.text-secondary {
+  color: #5b0115;
+}
+
+.border-primary {
+  border: #80011d;
+}
+
+button {
+  cursor: pointer;
+}
+
+body {
+  font-family: "Lato", sans-serif;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.ant-modal .ant-modal-content {
+  padding: 0;
+  border-radius: 24px;
+}
+
+.ant-input {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  font-size: 24px;
+  font-weight: 400;
+  color: black;
+  border: 1px solid #D8D8D8;
+}
