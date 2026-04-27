@@ -13,33 +13,72 @@ import {
   XOutlined,
 } from "@ant-design/icons";
 import GetExclusiveAccessModal from "../../components/get-exclusive-access-modal/GetExclusiveAccessModal";
+import { useQuery } from "@tanstack/react-query";
+import { productService } from "../../services/product.service";
+
+const CATEGORY_FALLBACKS = [
+  ImagesAndIcons.organicSpiritImage,
+  ImagesAndIcons.designerCocktails,
+  ImagesAndIcons.softDrinksLemon,
+  ImagesAndIcons.MixersHomeImage,
+  ImagesAndIcons.icecubeblue,
+  ImagesAndIcons.giftboxesRed,
+  ImagesAndIcons.hangoverKit,
+];
 
 const Home = () => {
   const [hovered, setHovered] = useState("");
-  const topPicks = [
-    ImagesAndIcons.organicSpiritImage,
-    ImagesAndIcons.designerCocktails,
-    ImagesAndIcons.softDrinksLemon,
-    ImagesAndIcons.MixersHomeImage,
-    ImagesAndIcons.icecubeblue,
-    ImagesAndIcons.giftboxesRed,
-    ImagesAndIcons.hangoverKit,
-  ];
+
+  const { data: productsData, isLoading: productsLoading, isError: productsError } = useQuery({
+    queryKey: ["featured-products"],
+    queryFn: () => productService.getFeaturedProducts(),
+  });
+
+  const { data: categories } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => productService.getCategories(),
+  });
+
+  const featuredProducts = productsData?.data ?? [];
+  const categoryImages = categories?.length
+    ? categories.map((c, i) => c.imageUrl ?? CATEGORY_FALLBACKS[i] ?? CATEGORY_FALLBACKS[0])
+    : CATEGORY_FALLBACKS;
+
   return (
     <section>
       <Navbar />
       <HeroSection />
       <ExploreSection />
       <div className="my-20 w-[90%] mx-auto lg:w-full">
-        <h3 className="text-3xl  font-semibold text-center text-primary">
+        <h3 className="text-3xl font-semibold text-center text-primary">
           TOP PICKS
         </h3>
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar mt-10 mb-30 lg:justify-center w-full">
-          <ProductCard />
-          <ProductCard />
-          <ProductCard />
-          <ProductCard />
-          <ProductCard />
+          {productsLoading && (
+            <>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="lg:w-[246px] lg:h-[360px] w-40 h-56 rounded-3xl bg-[#F4EEEE] animate-pulse shrink-0"
+                />
+              ))}
+            </>
+          )}
+          {productsError && (
+            <p className="text-center text-red-600 py-6">Failed to load products</p>
+          )}
+          {!productsLoading && !productsError && featuredProducts.length === 0 && (
+            <>
+              <ProductCard />
+              <ProductCard />
+              <ProductCard />
+              <ProductCard />
+              <ProductCard />
+            </>
+          )}
+          {featuredProducts.slice(0, 5).map((product) => (
+            <ProductCard key={product.id} product={product} />
+          ))}
         </div>
         <div className="flex items-start ml-21 gap-4 overflow-x-hidden">
           <div className="w-62">
@@ -49,8 +88,7 @@ const Home = () => {
             </h4>
           </div>
           <div className="flex gap-4">
-            
-            {topPicks.map((image, index) => (
+            {categoryImages.map((image, index) => (
               <div
                 key={index}
                 style={{
@@ -59,7 +97,7 @@ const Home = () => {
                   backgroundPosition: "center",
                 }}
                 className="w-69 h-88 rounded-2xl transition-all duration-500 ease-in-out hover:h-95 origin-center shrink-0 cursor-pointer"
-              ></div>
+              />
             ))}
           </div>
         </div>
@@ -77,7 +115,7 @@ const Home = () => {
               Get Exclusive Access
             </h4>
             <p className="text-2xl font-normal hidden md:block text-white text-center">
-              Enjoy exclusive access and offers to Ile Oti’s most premium
+              Enjoy exclusive access and offers to Ile Oti's most premium
               experience.
             </p>
             <div className="lg:w-85 w-41 mt-6">
@@ -111,11 +149,7 @@ const Home = () => {
                 ${hovered === "corperateevents" ? "opacity-100" : "opacity-0"}
                 `}
               >
-                <Button
-                  type="white"
-                  label="Request A Quote"
-                  className="text-primary"
-                />
+                <Button type="white" label="Request A Quote" className="text-primary" />
               </div>
             </div>
           </div>
@@ -137,15 +171,11 @@ const Home = () => {
                 BUILD YOUR OWN BOX
               </h2>
               <div
-                className={`w-75 hidden lg:block  transition-opacity duration-500
+                className={`w-75 hidden lg:block transition-opacity duration-500
                 ${hovered === "buildABox" ? "opacity-100" : "opacity-0"}
                 `}
               >
-                <Button
-                  type="white"
-                  label="Request A Quote"
-                  className="text-primary"
-                />
+                <Button type="white" label="Request A Quote" className="text-primary" />
               </div>
             </div>
           </div>

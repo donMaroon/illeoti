@@ -1,4 +1,4 @@
-import { Checkbox, Upload, UploadProps } from "antd";
+import { Checkbox, message, Upload, UploadProps } from "antd";
 import Footer from "../../components/footer/Footer";
 import CustomInput from "../../components/input/CustomInput";
 import Navbar from "../../components/navbar/Navbar";
@@ -6,34 +6,87 @@ import CustomSelect from "../../components/select/CustomSelect";
 import { ImagesAndIcons } from "../../shared/images-icons/ImagesAndIcons";
 import Button from "../../components/btns/Button";
 import { useState } from "react";
+import { bookEvent } from "../../services/event.service";
+import { getApiErrorMessage } from "../../lib/api-error";
+import { useAuthStore } from "../../store/auth.store";
 
 const BookAnEvent = () => {
   const { Dragger } = Upload;
-  const [orderService, setOrderService] = useState("cooperate")
-  const props: UploadProps = {
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const [orderService, setOrderService] = useState<"cooperate" | "bulk">(
+    "cooperate",
+  );
+  const [deliveryMethod, setDeliveryMethod] = useState("");
+  const [addressA, setAddressA] = useState("");
+  const [addressB, setAddressB] = useState("");
+  const [addressC, setAddressC] = useState("");
+  const [addressD, setAddressD] = useState("");
+  const [needsBartender, setNeedsBartender] = useState(false);
+  const [needsMenuCuration, setNeedsMenuCuration] = useState(false);
+  const [fileUrl, setFileUrl] = useState<string | undefined>();
+  const [submitting, setSubmitting] = useState(false);
+
+  const uploadProps: UploadProps = {
     name: "file",
     multiple: false,
     action: `${
       import.meta.env.VITE_BASE_URL
     }/authenticationservice/v1.0/rest/api/app/image/file/upload`,
+    headers: accessToken
+      ? { Authorization: `Bearer ${accessToken}` }
+      : undefined,
+    showUploadList: false,
     onChange(info) {
-      const { status } = info.file;
-      if (status !== "uploading") {
-        console.log(info.file.response.data.filePath);
+      const { status, response } = info.file;
+      if (status === "done" && response?.data?.filePath) {
+        const path = response.data.filePath as string;
+        setFileUrl(path.startsWith("http") ? path : `https://${path}`);
       }
-      if (status === "done") {
-        console.log(`${info.file.name} file uploaded successfully.`);
-      } else if (status === "error") {
-        console.log(`${info.file.name} file upload failed.`);
+      if (status === "error") {
+        void message.error(
+          `${info.file.name} could not be uploaded. Sign in if required, or skip the file.`,
+        );
       }
     },
-    onDrop() {},
   };
 
   const styles = {
     active: `py-3.5 px-12 bg-white rounded-2xl text-primary text-base font-semibold`,
-    inActive: `py-3.5 px-12 rounded-2xl text-white text-base font-semibold`
-  }
+    inActive: `py-3.5 px-12 rounded-2xl text-white text-base font-semibold`,
+  };
+
+  const handleRequestQuote = async () => {
+    const address = [addressA, addressB, addressC, addressD]
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join("\n");
+    if (!deliveryMethod.trim()) {
+      void message.error("Please select a delivery method.");
+      return;
+    }
+    if (!address) {
+      void message.error("Please enter your address.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await bookEvent({
+        serviceType: orderService === "cooperate" ? "CORPORATE" : "BULK",
+        deliveryMethod: deliveryMethod.trim(),
+        address,
+        needsBartender,
+        needsMenuCuration,
+        fileUrl,
+      });
+      void message.success(
+        "Your booking request has been submitted. We will contact you shortly.",
+      );
+    } catch (e) {
+      void message.error(getApiErrorMessage(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div>
@@ -41,8 +94,24 @@ const BookAnEvent = () => {
       <div className="bg-primary py-7">
         <div className="max-w-270 w-[90%] mx-auto ">
           <div className="flex justify-center w-full items-center">
-            <button onClick={() => setOrderService("cooperate")} className={orderService === "cooperate" ? styles.active: styles.inActive  }>Event & Corporate Services</button>
-            <button onClick={() => setOrderService("bulk")} className={orderService === "bulk" ? styles.active: styles.inActive  }>Bulk Ordering</button>
+            <button
+              type="button"
+              onClick={() => setOrderService("cooperate")}
+              className={
+                orderService === "cooperate" ? styles.active : styles.inActive
+              }
+            >
+              Event & Corporate Services
+            </button>
+            <button
+              type="button"
+              onClick={() => setOrderService("bulk")}
+              className={
+                orderService === "bulk" ? styles.active : styles.inActive
+              }
+            >
+              Bulk Ordering
+            </button>
           </div>
         </div>
       </div>
@@ -56,6 +125,7 @@ const BookAnEvent = () => {
             ]}
             placeholder="Select Delivery Method"
             label="Select Country"
+            onChange={(v) => setDeliveryMethod(v)}
           />
           <CustomSelect
             options={[
@@ -64,19 +134,36 @@ const BookAnEvent = () => {
             ]}
             placeholder="Select Delivery Method"
             label="Select Country"
+            onChange={(v) => setDeliveryMethod(v)}
           />
         </div>
         <div className="flex gap-4">
-          <CustomInput label="Address" placeholder="Enter your full address" />
-          <CustomInput label="Address" placeholder="Enter your full address" />
+          <CustomInput
+            label="Address"
+            placeholder="Enter your full address"
+            value={addressA}
+            onChange={(e) => setAddressA(e.target.value)}
+          />
+          <CustomInput
+            label="Address"
+            placeholder="Enter your full address"
+            value={addressB}
+            onChange={(e) => setAddressB(e.target.value)}
+          />
         </div>
         <div className="flex gap-4">
-          <CustomInput label="Address" placeholder="Enter your full address" />
-          <CustomInput label="Address" placeholder="Enter your full address" />
-        </div>
-        <div className="flex gap-4">
-          <CustomInput label="Address" placeholder="Enter your full address" />
-          <CustomInput label="Address" placeholder="Enter your full address" />
+          <CustomInput
+            label="Address"
+            placeholder="Enter your full address"
+            value={addressC}
+            onChange={(e) => setAddressC(e.target.value)}
+          />
+          <CustomInput
+            label="Address"
+            placeholder="Enter your full address"
+            value={addressD}
+            onChange={(e) => setAddressD(e.target.value)}
+          />
         </div>
         <Dragger
           style={{
@@ -85,7 +172,7 @@ const BookAnEvent = () => {
             borderColor: "#E5E7EB",
           }}
           showUploadList={false}
-          {...props}
+          {...uploadProps}
         >
           <div className="bg-white  rounded-lg w-full text-left flex justify-between items-center duration-200">
             <div className="flex gap-1 flex-col">
@@ -112,7 +199,10 @@ const BookAnEvent = () => {
                 Add Bartender
               </span>
             </div>
-            <Checkbox />
+            <Checkbox
+              checked={needsBartender}
+              onChange={(e) => setNeedsBartender(e.target.checked)}
+            />
           </div>
           <div className="bg-white border border-[#D8D8D8] rounded-lg px-4 py-3 w-full text-left flex justify-between items-center duration-200">
             <div className="flex gap-1 flex-col">
@@ -123,13 +213,17 @@ const BookAnEvent = () => {
                 Menu Service
               </span>
             </div>
-            <Checkbox />
+            <Checkbox
+              checked={needsMenuCuration}
+              onChange={(e) => setNeedsMenuCuration(e.target.checked)}
+            />
           </div>
         </div>
         <Button
           type="red"
-          label="Request Quote"
+          label={submitting ? "Submitting…" : "Request Quote"}
           className="lg:py-6 text-base lg:text-xl py-3 font-semibold rounded-[55px]"
+          handleClick={() => void handleRequestQuote()}
         />
       </div>
       <Footer />

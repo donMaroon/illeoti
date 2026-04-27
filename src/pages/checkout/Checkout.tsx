@@ -4,12 +4,104 @@ import CustomSelect from "../../components/select/CustomSelect";
 import CustomInput from "../../components/input/CustomInput";
 import { ImagesAndIcons } from "../../shared/images-icons/ImagesAndIcons";
 import Button from "../../components/btns/Button";
+import { useEffect, useState } from "react";
+import { useAuthStore } from "../../store/auth.store";
+import { useNavigate } from "react-router-dom";
+import { routes } from "../../shared/routes/routes";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { authService } from "../../services/auth.service";
+import { cartService } from "../../services/cart.service";
+import { orderService } from "../../services/order.service";
+import { effectivePrice, formatNGN, primaryImage } from "../../lib/format";
+import { message } from "antd";
+import { ImagesAndIcons as Img } from "../../shared/images-icons/ImagesAndIcons";
+import type { Address } from "../../types";
 
 const Checkout = () => {
+  const isAuthenticated = useAuthStore((s) => Boolean(s.accessToken));
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isAuthenticated) navigate(routes.home);
+  }, [isAuthenticated, navigate]);
+
+  const { data: addresses } = useQuery({
+    queryKey: ["addresses"],
+    queryFn: authService.getAddresses,
+    enabled: isAuthenticated,
+  });
+
+  const { data: cart } = useQuery({
+    queryKey: ["cart"],
+    queryFn: cartService.getCart,
+    enabled: isAuthenticated,
+  });
+
+  const defaultAddr: Address | undefined =
+    (addresses as Address[] | undefined)?.find((a) => a.isDefault) ??
+    (addresses as Address[] | undefined)?.[0];
+
+  const [form, setForm] = useState({
+    fullName: "",
+    address: "",
+    city: "",
+    state: "",
+    zip: "",
+    country: "Nigeria",
+    phone: "",
+  });
+
+  // Pre-fill from default address
+  useEffect(() => {
+    if (defaultAddr) {
+      setForm({
+        fullName: defaultAddr.fullName,
+        address: defaultAddr.address,
+        city: defaultAddr.city,
+        state: defaultAddr.state,
+        zip: defaultAddr.zip ?? "",
+        country: defaultAddr.country,
+        phone: defaultAddr.phone,
+      });
+    }
+  }, [defaultAddr]);
+
+  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const cartItems = cart?.items ?? [];
+  const subtotal = cartItems.reduce(
+    (sum, item) => sum + effectivePrice(item.product) * item.quantity,
+    0,
+  );
+
+  const createOrderMutation = useMutation({
+    mutationFn: async () => {
+      if (!form.fullName || !form.address || !form.city || !form.state || !form.country || !form.phone) {
+        throw new Error("Please fill in all required fields");
+      }
+      // Use default address id if available; otherwise the backend will need a real address id.
+      const addressId = defaultAddr?.id;
+      if (!addressId) throw new Error("Please add a shipping address to your profile first");
+
+      const order = await orderService.createOrder({ addressId });
+      const payment = await orderService.initializePayment(order.id);
+      return payment;
+    },
+    onSuccess: (payment) => {
+      window.location.href = payment.authorizationUrl;
+    },
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Could not process order";
+      void message.error(msg);
+    },
+  });
+
   return (
     <section>
       <Navbar />
       <div className="max-w-300 w-[90%] flex flex-col-reverse lg:flex-row mx-auto gap-12 pt-12 pb-20">
+        {/* LEFT — Delivery form */}
         <div className="w-full lg:w-180 flex-col flex gap-6">
           <p className="hidden lg:block font-normal text-2xl">Checkout</p>
           <h4 className="text-3xl font-bold">Delivery</h4>
@@ -22,87 +114,103 @@ const Checkout = () => {
             label="Select Country"
           />
           <div className="flex gap-4 flex-col lg:flex-row items-center">
-            <CustomSelect
-              options={[
-                { value: "Delivery", label: "Delivery" },
-                { value: "Pickup", label: "Pickup" },
-              ]}
-              placeholder="Select Delivery Method"
-              label="Select Country"
+            <CustomInput
+              label="Full Name"
+              placeholder="Your full name"
+              value={form.fullName}
+              onChange={set("fullName")}
             />
-            <CustomSelect
-              options={[
-                { value: "Delivery", label: "Delivery" },
-                { value: "Pickup", label: "Pickup" },
-              ]}
-              placeholder="Select Delivery Method"
-              label="Select Country"
+            <CustomInput
+              label="Phone"
+              placeholder="+234..."
+              value={form.phone}
+              onChange={set("phone")}
             />
           </div>
           <CustomInput
             label="Address"
             placeholder="Enter your full address"
             icon={ImagesAndIcons.mapIcon}
+            value={form.address}
+            onChange={set("address")}
           />
           <div className="flex gap-4 flex-col lg:flex-row items-center">
-            <CustomSelect
-              options={[
-                { value: "Delivery", label: "Delivery" },
-                { value: "Pickup", label: "Pickup" },
-              ]}
-              placeholder="Select city"
+            <CustomInput
               label="City"
+              placeholder="City"
+              value={form.city}
+              onChange={set("city")}
             />
-            <CustomSelect
-              options={[
-                { value: "Delivery", label: "Delivery" },
-                { value: "Pickup", label: "Pickup" },
-              ]}
-              placeholder="Select state"
+            <CustomInput
               label="State"
+              placeholder="State"
+              value={form.state}
+              onChange={set("state")}
             />
-            <CustomInput label="Zip" placeholder="Enter Zip" />
+            <CustomInput
+              label="Zip"
+              placeholder="Enter Zip"
+              value={form.zip}
+              onChange={set("zip")}
+            />
           </div>
           <CustomInput
-            label="Address"
-            placeholder="Enter your full address"
-            icon={ImagesAndIcons.mapIcon}
+            label="Country"
+            placeholder="Country"
+            value={form.country}
+            onChange={set("country")}
           />
-
           <Button
             type="red"
-            label="Next: Payment Method"
+            label={createOrderMutation.isPending ? "Processing..." : "Next: Payment Method"}
             className="lg:py-6 text-base lg:text-xl py-3 font-semibold rounded-[55px]"
+            handleClick={() => createOrderMutation.mutate()}
           />
         </div>
+
+        {/* RIGHT — Order summary */}
         <div className="w-full lg:w-115">
-          <h4 className="text-3xl font-bold ">Your Order</h4>
-          <div className="flex  flex-col gap-4 mt-6">
-            {[1, 2].map((i) => (
-              <div key={i} className="flex gap-4 items-center">
-                <img
-                  className="w-34 h-40 rounded-2xl"
-                  src={ImagesAndIcons.softDrinkBottle}
-                  alt=""
-                />
-                <div>
-                  <p className="text-base lg:text-xl font-bold">Tanqueray London Dry Gin</p>
-                  <p className="text-[#585858] text-xs lg:text-base font-normal mb-6">
-                    Category: Gin
-                  </p>
-                  <p className="text-base lg:text-xl font-bold">N35,000</p>
-                  <p className="text-[#585858] text-xs lg:text-base font-normal">
-                    Quantity: 2
-                  </p>
-                </div>
-              </div>
-            ))}
+          <h4 className="text-3xl font-bold">Your Order</h4>
+          <div className="flex flex-col gap-4 mt-6">
+            {cartItems.length === 0
+              ? [1, 2].map((i) => (
+                  <div key={i} className="flex gap-4 items-center">
+                    <img className="w-34 h-40 rounded-2xl" src={Img.softDrinkBottle} alt="" />
+                    <div>
+                      <p className="text-base lg:text-xl font-bold">Tanqueray London Dry Gin</p>
+                      <p className="text-[#585858] text-xs lg:text-base font-normal mb-6">Category: Gin</p>
+                      <p className="text-base lg:text-xl font-bold">N35,000</p>
+                      <p className="text-[#585858] text-xs lg:text-base font-normal">Quantity: 2</p>
+                    </div>
+                  </div>
+                ))
+              : cartItems.map((item) => (
+                  <div key={item.id} className="flex gap-4 items-center">
+                    <img
+                      className="w-34 h-40 rounded-2xl object-cover"
+                      src={primaryImage(item.product.images, Img.softDrinkBottle)}
+                      alt={item.product.name}
+                    />
+                    <div>
+                      <p className="text-base lg:text-xl font-bold">{item.product.name}</p>
+                      <p className="text-[#585858] text-xs lg:text-base font-normal mb-6">
+                        Category: {(item.product as { category?: { name?: string } }).category?.name ?? "—"}
+                      </p>
+                      <p className="text-base lg:text-xl font-bold">
+                        {formatNGN(effectivePrice(item.product))}
+                      </p>
+                      <p className="text-[#585858] text-xs lg:text-base font-normal">
+                        Quantity: {item.quantity}
+                      </p>
+                    </div>
+                  </div>
+                ))}
           </div>
           <h4 className="text-3xl font-bold mt-10">Summary</h4>
           <div className="flex flex-col gap-2 mt-8">
-            <div className="flex justify-between ">
+            <div className="flex justify-between">
               <p className="text-base lg:text-xl font-bold text-black">Subtotal</p>
-              <p className="text-2xl font-normal text-black">N70,000.00</p>
+              <p className="text-2xl font-normal text-black">{formatNGN(subtotal)}</p>
             </div>
             <div className="flex justify-between">
               <p className="text-base lg:text-xl font-bold text-black">Estimated Shipping</p>
@@ -115,7 +223,7 @@ const Checkout = () => {
           </div>
           <div className="flex justify-between border-y-2 mt-4 border-[#F0F0F0] py-4">
             <p className="text-base lg:text-xl font-bold text-black">Total</p>
-            <p className="text-2xl font-normal text-black">N70,000.00</p>
+            <p className="text-2xl font-normal text-black">{formatNGN(subtotal)}</p>
           </div>
         </div>
       </div>

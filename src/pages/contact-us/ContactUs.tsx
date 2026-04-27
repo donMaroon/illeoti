@@ -1,10 +1,48 @@
+import { message } from "antd";
+import { useState, type ChangeEvent } from "react";
 import Button from "../../components/btns/Button";
 import Footer from "../../components/footer/Footer";
 import CustomInput from "../../components/input/CustomInput";
 import Navbar from "../../components/navbar/Navbar";
 import { ImagesAndIcons } from "../../shared/images-icons/ImagesAndIcons";
+import { submitContact } from "../../services/contact.service";
+import { getApiErrorMessage } from "../../lib/api-error";
 
 const ContactUs = () => {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [subject, setSubject] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSend = async () => {
+    const name = `${firstName} ${lastName}`.trim();
+    if (!name || !email.trim() || !description.trim()) {
+      void message.error("Please fill in name, email, and description.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await submitContact({
+        name,
+        email: email.trim(),
+        message: [subject.trim() && `Subject: ${subject.trim()}`, description.trim()]
+          .filter(Boolean)
+          .join("\n\n"),
+        phone: phone.trim() || undefined,
+      });
+      void message.success(
+        "Message sent successfully. We'll be in touch soon.",
+      );
+    } catch (e) {
+      void message.error(getApiErrorMessage(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <section>
       <Navbar />
@@ -33,33 +71,64 @@ const ContactUs = () => {
                 <CustomInput
                   label="First Name"
                   placeholder="Enter First Name"
+                  value={firstName}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    setFirstName(e.target.value)
+                  }
                 />
-                <CustomInput label="Last Name" placeholder="Enter Last Name" />
+                <CustomInput
+                  label="Last Name"
+                  placeholder="Enter Last Name"
+                  value={lastName}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    setLastName(e.target.value)
+                  }
+                />
               </div>
               <div className="flex flex-col lg:flex-row gap-4 lg:gap-5">
                 <CustomInput
                   label="Phone Number"
                   placeholder="Enter Phone Number"
+                  value={phone}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    setPhone(e.target.value)
+                  }
                 />
                 <CustomInput
                   label="Email Address"
                   placeholder="Enter Email Address"
+                  value={email}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    setEmail(e.target.value)
+                  }
                 />
               </div>
-              <CustomInput label="Subject" placeholder="Enter Subject" />
+              <CustomInput
+                label="Subject"
+                placeholder="Enter Subject"
+                value={subject}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setSubject(e.target.value)
+                }
+              />
               <CustomInput
                 label="Description"
                 placeholder="Give Us More Information"
+                value={description}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setDescription(e.target.value)
+                }
               />
               <Button
                 type="red"
-                label="Send"
+                label={loading ? "Sending…" : "Send"}
                 className="font-semibold  rounded-[55px] py-6 text-xl my-8"
+                handleClick={() => void handleSend()}
               />
             </div>
           </div>
           <div className="w-1/2">
-            <img src={ImagesAndIcons.contactUsImage} alt="" />
+            <img src={ImagesAndIcons.FooterImage} alt="" />
           </div>
         </div>
       </div>

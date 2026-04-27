@@ -14,14 +14,19 @@
     "@react-three/drei": "^9.100.0",
     "@react-three/fiber": "^8.15.10",
     "@tailwindcss/vite": "^4.1.14",
+    "@tanstack/react-query": "^5.100.5",
     "antd": "^5.27.6",
+    "axios": "^1.15.2",
+    "js-cookie": "^3.0.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.9.4",
     "tailwindcss": "^4.1.14",
-    "three": "^0.169.0"
+    "three": "^0.169.0",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@types/js-cookie": "^3.0.6",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
     "@typescript-eslint/eslint-plugin": "^6.21.0",

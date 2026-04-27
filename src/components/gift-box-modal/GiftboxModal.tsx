@@ -1,10 +1,23 @@
-import { Modal } from "antd";
-import { Dispatch, SetStateAction, useState } from "react";
+import { Modal, message } from "antd";
+import { Dispatch, SetStateAction, useEffect, useState } from "react";
 import Button from "../btns/Button";
 import { ImagesAndIcons } from "../../shared/images-icons/ImagesAndIcons";
+import { createGiftBox } from "../../services/giftbox.service";
+import { getApiErrorMessage } from "../../lib/api-error";
+import { useAuthStore } from "../../store/auth.store";
+import { useLoginModalStore } from "../../store/login-modal.store";
+import { formatNGN } from "../../lib/format";
+
+export type GiftBoxProductSeed = {
+  productId: string;
+  name: string;
+  category: string;
+  price: number;
+  image: string;
+};
 
 interface GiftItem {
-  id: number;
+  productId: string;
   image: string;
   name: string;
   category: string;
@@ -16,46 +29,95 @@ interface giftBoxModalProps {
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
   handleAddPersonalMessage: () => void;
+  initialProduct?: GiftBoxProductSeed | null;
+  personalMessage?: string;
+  checkoutLoading?: boolean;
+  onCheckout?: () => void | Promise<void>;
 }
 
-const GiftBoxModal = ({ open, setOpen, handleAddPersonalMessage }: giftBoxModalProps) => {
-  // set to false in real use
-  const [items, setItems] = useState<GiftItem[]>([
-    {
-      id: 1,
-      image: "https://res.cloudinary.com/demo/image/upload/sample.webp",
-      name: "Tanqueray London Dry Gin",
-      category: "Gin",
-      price: 35000,
-      quantity: 1,
-    },
-    {
-      id: 2,
-      image: "https://res.cloudinary.com/demo/image/upload/sample.webp",
-      name: "Deanston 10 Year Old",
-      category: "Whisky",
-      price: 32000,
-      quantity: 2,
-    },
-  ]);
+const GiftBoxModal = ({
+  open,
+  setOpen,
+  handleAddPersonalMessage,
+  initialProduct,
+  personalMessage,
+  checkoutLoading,
+  onCheckout,
+}: giftBoxModalProps) => {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken));
+  const requestLogin = useLoginModalStore((s) => s.requestLogin);
+  const [items, setItems] = useState<GiftItem[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
-  const increment = (id: number) =>
+  useEffect(() => {
+    if (!open || !initialProduct) {
+      return;
+    }
+    setItems([
+      {
+        productId: initialProduct.productId,
+        image: initialProduct.image,
+        name: initialProduct.name,
+        category: initialProduct.category,
+        price: initialProduct.price,
+        quantity: 1,
+      },
+    ]);
+  }, [open, initialProduct]);
+
+  const increment = (productId: string) =>
     setItems((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, quantity: item.quantity + 1 } : item
-      )
+        item.productId === productId
+          ? { ...item, quantity: item.quantity + 1 }
+          : item,
+      ),
     );
 
-  const decrement = (id: number) =>
+  const decrement = (productId: string) =>
     setItems((prev) =>
       prev.map((item) =>
-        item.id === id && item.quantity > 1
+        item.productId === productId && item.quantity > 1
           ? { ...item, quantity: item.quantity - 1 }
-          : item
-      )
+          : item,
+      ),
     );
 
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+  const handleProceedCheckout = async () => {
+    if (onCheckout) {
+      await onCheckout();
+      return;
+    }
+    if (!isAuthed) {
+      requestLogin();
+      void message.warning("Please log in to create a gift box.");
+      return;
+    }
+    if (items.length === 0) {
+      void message.error("Add at least one item to your gift box.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await createGiftBox({
+        items: items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+        })),
+        personalMessage: personalMessage?.trim() || undefined,
+      });
+      void message.success("Your gift box has been created");
+      setOpen(false);
+    } catch (e) {
+      void message.error(getApiErrorMessage(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const busy = Boolean(checkoutLoading) || submitting;
 
   return (
     <Modal
@@ -71,7 +133,7 @@ const GiftBoxModal = ({ open, setOpen, handleAddPersonalMessage }: giftBoxModalP
           <h2 className="text-2xl font-semibold flex items-center gap-2">
             <img src={ImagesAndIcons.giftBox} alt="" /> Your Gift Box
           </h2>
-          <button onClick={() => setOpen(false)}>
+          <button type="button" onClick={() => setOpen(false)}>
             <img src={ImagesAndIcons.xIcon} alt="" />
           </button>
         </div>
@@ -83,50 +145,56 @@ const GiftBoxModal = ({ open, setOpen, handleAddPersonalMessage }: giftBoxModalP
             </span>
           </div>
 
-        <div className="flex items-center lato gap-4 overflow-auto no-scrollbar my-6">
-            {
-              items.map((item) => (
-          <div key={item.id} className="rounded-2xl whitespace-nowrap min-w-117 flex items-center gap-4 bg-white px-8 py-6">
-            <img
-              className="w-34 h-40"
-              src={ImagesAndIcons.softDrinkBottle}
-              alt=""
-            />
-            <div className=" flex items-start flex-auto justify-between">
-              <div className="flex flex-col">
-                <p className="text-xl text-black mb-1 font-bold max-w-59">
-                  Tanqueray London Dry Gin
-                </p>
-                <p className="text-sm font-normal mb-4 text-[#585858]">
-                  Category: Gin
-                </p>
-                <p className="text-xl leading-8 mb-1 text-black font-bold max-w-59">
-                  N35,000.00
-                </p>
-                <div className="flex">
-                  <div className="bg-[#F4EEEE] rounded-[12px] px-4 py-2 flex gap-2 font-semibold text-xl ">
-                    <button onClick={() => decrement(item.id)}>-</button>
-                    <span>1</span>
-                    <button onClick={() => increment(item.id)}>+</button>
+          <div className="flex items-center lato gap-4 overflow-auto no-scrollbar my-6">
+            {items.map((item) => (
+              <div
+                key={item.productId}
+                className="rounded-2xl whitespace-nowrap min-w-117 flex items-center gap-4 bg-white px-8 py-6"
+              >
+                <img className="w-34 h-40 object-cover" src={item.image} alt="" />
+                <div className=" flex items-start flex-auto justify-between">
+                  <div className="flex flex-col">
+                    <p className="text-xl text-black mb-1 font-bold max-w-59">
+                      {item.name}
+                    </p>
+                    <p className="text-sm font-normal mb-4 text-[#585858]">
+                      Category: {item.category}
+                    </p>
+                    <p className="text-xl leading-8 mb-1 text-black font-bold max-w-59">
+                      {formatNGN(item.price)}
+                    </p>
+                    <div className="flex">
+                      <div className="bg-[#F4EEEE] rounded-[12px] px-4 py-2 flex gap-2 font-semibold text-xl ">
+                        <button
+                          type="button"
+                          onClick={() => decrement(item.productId)}
+                        >
+                          -
+                        </button>
+                        <span>{item.quantity}</span>
+                        <button
+                          type="button"
+                          onClick={() => increment(item.productId)}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            ))}
           </div>
-              ))  
-            }
-        </div>
-
 
           <div className="text-center">
-            <button className="text-[#80011D] underline font-semibold text-sm">
+            <button type="button" className="text-[#80011D] underline font-semibold text-sm">
               Shop More Items
             </button>
           </div>
         </div>
         <div className="flex items-center text-xl mb-4 justify-between">
           <span className="font-bold ">Total:</span>
-          <span className="font-bold ">₦{total.toLocaleString()}.00</span>
+          <span className="font-bold ">{formatNGN(total)}</span>
         </div>
         <div className="flex flex-col gap-4">
           <Button
@@ -137,9 +205,10 @@ const GiftBoxModal = ({ open, setOpen, handleAddPersonalMessage }: giftBoxModalP
             handleClick={handleAddPersonalMessage}
           />
           <Button
-            label="Proceed To Check Out"
+            label={busy ? "Please wait…" : "Proceed To Check Out"}
             type="red"
             className="py-6 text-xl rounded-[55px] font-semibold"
+            handleClick={() => void handleProceedCheckout()}
           />
         </div>
       </div>

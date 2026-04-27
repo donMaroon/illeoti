@@ -1,14 +1,63 @@
-import { Modal } from "antd";
-import { useState } from "react";
+import { Modal, message } from "antd";
+import { useEffect, useState } from "react";
 import { ImagesAndIcons } from "../../shared/images-icons/ImagesAndIcons";
 import CustomInput from "../../components/input/CustomInput";
 import Button from "../../components/btns/Button";
+import OtpLogin from "./OtpLogin";
+import {
+  getRememberedEmail,
+  sendOtp,
+  initiateGoogleLogin,
+} from "../../services/auth.service";
+import { getApiErrorMessage } from "../../lib/api-error";
+import { useLoginModalStore } from "../../store/login-modal.store";
 
 const Login = () => {
+  const openSignal = useLoginModalStore((s) => s.openSignal);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpenTwo, setIsModalOpenTwo] = useState(false);
+  const [email, setEmail] = useState(() => getRememberedEmail() ?? "");
+  const [sendLoading, setSendLoading] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (openSignal > 0) {
+      setIsModalOpen(true);
+    }
+  }, [openSignal]);
+
   const handleCancel = () => {
     setIsModalOpen(false);
+    setSendError(null);
   };
+
+  const handleSendOtp = async () => {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      void message.error("Please enter your email address.");
+      return;
+    }
+    setSendError(null);
+    setSendLoading(true);
+    try {
+      await sendOtp(trimmed);
+      setIsModalOpen(false);
+      setIsModalOpenTwo(true);
+    } catch (err) {
+      setSendError(getApiErrorMessage(err));
+    } finally {
+      setSendLoading(false);
+    }
+  };
+
+  const handleGoogle = () => {
+    try {
+      initiateGoogleLogin();
+    } catch (err) {
+      void message.error(getApiErrorMessage(err));
+    }
+  };
+
   return (
     <div>
       <button
@@ -45,17 +94,37 @@ const Login = () => {
           <CustomInput
             label="Email Address"
             placeholder="Enter Email Address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
+          {sendError ? (
+            <p className="text-sm text-red-600 mt-2" role="alert">
+              {sendError}
+            </p>
+          ) : null}
           <Button
             type="red"
-            label="Log In"
+            label={sendLoading ? "Sending…" : "Log In"}
             className="font-semibold  rounded-[55px] py-6 text-xl my-11"
+            handleClick={() => void handleSendOtp()}
           />
           <div className="flex items-center justify-center">
-          <button className="w-[145px] h-[58px]  rounded-[22px] bg-[#D9D9D9]"></button>
+            <button
+              type="button"
+              className="w-[145px] h-[58px]  rounded-[22px] bg-[#D9D9D9]"
+              onClick={handleGoogle}
+              aria-label="Continue with Google"
+            >
+              {" "}
+            </button>
           </div>
         </div>
       </Modal>
+      <OtpLogin
+        isModalOpen={isModalOpenTwo}
+        handleCancel={() => setIsModalOpenTwo(false)}
+        email={email.trim()}
+      />
     </div>
   );
 };

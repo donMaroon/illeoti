@@ -2,10 +2,12 @@ import { Dispatch, SetStateAction } from "react";
 
 interface orderTabsProps {
     activeTab: string;
-    setActiveTab: Dispatch<SetStateAction<string>>
+    setActiveTab: Dispatch<SetStateAction<string>>;
+    activeCount?: number;
+    completedCount?: number;
 }
 
-const OrderTabs = ({activeTab, setActiveTab}: orderTabsProps) => {
+const OrderTabs = ({activeTab, setActiveTab, activeCount, completedCount}: orderTabsProps) => {
 
     
     const headerTabs = [
@@ -80,7 +82,7 @@ const OrderTabs = ({activeTab, setActiveTab}: orderTabsProps) => {
             >
             {tab.img(tab.label === activeTab)}  {tab.label}{" "}
               <span className="h-3.5 w-3.5 rounded-full text-xs bg-[#EDEDED]">
-                3
+                {tab.label === "Active" ? (activeCount ?? 0) : (completedCount ?? 0)}
               </span>
             </button>
           ))}

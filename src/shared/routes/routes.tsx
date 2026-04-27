@@ -11,4 +11,7 @@ export const routes = {
     ordersDetails: '/dashboard/orders/:id',
     profile: '/dashboard/profile',
     dashboard: '/dashboard',
+    paymentSuccess: '/payment/success',
+    paymentFailed: '/payment/failed',
+    membershipSuccess: '/membership/success',
 };

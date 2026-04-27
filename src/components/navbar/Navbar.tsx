@@ -1,29 +1,196 @@
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Badge, Dropdown, message } from "antd";
+import { BellOutlined } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 import Login from "../../pages/authentication/Login";
 import SignUp from "../../pages/authentication/SignUp";
 import CartDropDown from "../../pages/cart/component/CartDropDown";
 import FavouritesDropDown from "../../pages/cart/component/Favourites";
 import Search from "../search/Search";
+import { useAuthStore } from "../../store/auth.store";
+import { logout } from "../../services/auth.service";
+import {
+  getNotifications,
+  markAllAsRead,
+  markAsRead,
+  type NotificationRow,
+} from "../../services/notification.service";
+import { getApiErrorMessage } from "../../lib/api-error";
+import { routes } from "../../shared/routes/routes";
+
+function initials(
+  user: {
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+  } | null,
+): string {
+  if (!user) {
+    return "?";
+  }
+  const a = user.firstName?.trim()?.[0];
+  const b = user.lastName?.trim()?.[0];
+  if (a && b) {
+    return `${a}${b}`.toUpperCase();
+  }
+  if (a) {
+    return a.toUpperCase();
+  }
+  const e = user.email?.trim()?.[0];
+  return e ? e.toUpperCase() : "?";
+}
+
+function formatNotifTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleString();
+  } catch {
+    return iso;
+  }
+}
 
 const Navbar = () => {
-  const isLogin = true;
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const user = useAuthStore((s) => s.user);
+  const isLoggedIn = Boolean(accessToken);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const [searchDraft, setSearchDraft] = useState("");
+
+  const { data: notifData } = useQuery({
+    queryKey: ["notifications", "nav"],
+    queryFn: () => getNotifications(1, 15),
+    enabled: isLoggedIn,
+    refetchInterval: 60_000,
+  });
+
+  const markOne = useMutation({
+    mutationFn: (id: string) => markAsRead(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: (e) => void message.error(getApiErrorMessage(e)),
+  });
+
+  const markAll = useMutation({
+    mutationFn: () => markAllAsRead(),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+      void message.success("All notifications marked as read");
+    },
+    onError: (e) => void message.error(getApiErrorMessage(e)),
+  });
+
+  const handleLogout = async () => {
+    setLogoutBusy(true);
+    try {
+      await logout();
+      void message.success("Logged out");
+    } catch {
+      void message.error("Could not log out. Please try again.");
+    } finally {
+      setLogoutBusy(false);
+    }
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchDraft.trim();
+    if (q) {
+      navigate(`${routes.products}?search=${encodeURIComponent(q)}`);
+    } else {
+      navigate(routes.products);
+    }
+  };
+
+  const list: NotificationRow[] = notifData?.data ?? [];
+  const unread = notifData?.unreadCount ?? 0;
+
+  const dropdownContent = (
+    <div className="bg-white border border-[#E5E5E5] rounded-xl shadow-lg w-80 max-h-96 overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[#F0F0F0]">
+        <span className="text-sm font-semibold">Notifications</span>
+        <button
+          type="button"
+          className="text-xs text-primary font-semibold disabled:opacity-50"
+          disabled={markAll.isPending || unread === 0}
+          onClick={() => markAll.mutate()}
+        >
+          Mark all as read
+        </button>
+      </div>
+      <div className="overflow-y-auto flex-1">
+        {list.length === 0 ? (
+          <p className="text-sm text-[#585858] p-4">No notifications yet.</p>
+        ) : (
+          list.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              className="w-full text-left px-3 py-2 border-b border-[#F5F5F5] hover:bg-[#FAFAFA]"
+              onClick={() => {
+                if (!n.isRead) {
+                  markOne.mutate(n.id);
+                }
+              }}
+            >
+              <p className="text-sm font-semibold text-black">{n.title}</p>
+              <p className="text-xs text-[#585858] line-clamp-2">{n.message}</p>
+              <p className="text-[10px] text-[#9B9B9B] mt-1">
+                {formatNotifTime(n.createdAt)}
+              </p>
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <nav className="bg-white max-w-300 mx-auto py-7 lato hidden lg:flex items-center justify-between">
       <div className="flex items-center gap-3">
         <p className="text-xl font-bold lato text-black">Products</p>
-        <Search
-          placeholder="Search any drink or Brand here..."
-          value=""
-          onChange={() => {}}
-        />
+        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
+          <Search
+            placeholder="Search any drink or Brand here..."
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
+          />
+        </form>
       </div>
-      {isLogin ? (
+      {isLoggedIn ? (
         <div className="flex items-center gap-7">
           <p className="text-xl font-bold text-black">Contact Us</p>
+          <Dropdown dropdownRender={() => dropdownContent} trigger={["click"]}>
+            <button
+              type="button"
+              className="flex items-center justify-center text-xl text-black"
+              aria-label="Notifications"
+            >
+              <Badge count={unread} size="small" offset={[2, 0]} overflowCount={99}>
+                <BellOutlined />
+              </Badge>
+            </button>
+          </Dropdown>
           <div className="flex items-center gap-2">
             <FavouritesDropDown />
             <CartDropDown />
           </div>
-          <div className="w-10 h-10 bg-black rounded-full"></div>
+          <div
+            className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-white text-sm font-semibold"
+            title={user?.email ?? "Account"}
+          >
+            {initials(user)}
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            disabled={logoutBusy}
+            className="text-xl font-bold text-black disabled:opacity-50"
+          >
+            {logoutBusy ? "…" : "Log out"}
+          </button>
         </div>
       ) : (
         <div className="flex items-center gap-8">

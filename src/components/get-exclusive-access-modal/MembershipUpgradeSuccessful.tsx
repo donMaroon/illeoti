@@ -1,51 +1,38 @@
-import { Modal } from "antd";
-import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ImagesAndIcons } from "../../shared/images-icons/ImagesAndIcons";
-import Button from "../../components/btns/Button";
+import Button from "../btns/Button";
+import { routes } from "../../shared/routes/routes";
 
-const MembershipUpgradeSuccessful = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const handleCancel = () => {
-    setIsModalOpen(false);
-  };
+/** Shared success UI (full page at `/membership/success` or embeddable). */
+export function MembershipSuccessBody({
+  paystackReference,
+}: {
+  paystackReference?: string | null;
+}) {
+  const navigate = useNavigate();
+
   return (
-      <Modal
-        open={isModalOpen}
-        footer={null}
-        onCancel={handleCancel}
-        width={{
-          xs: "90%",
-          sm: "80%",
-          md: "70%",
-          lg: "542px",
-          xl: "542px",
-          xxl: "542px",
-        }}
-        centered
-        closable={false}
-        style={{
-          borderRadius: 24,
-        }}
-      >
-        <div className="py-9 px-8 lato">
-          <div className="flex mb-11 items-center justify-between ">
-            <h2 className="text-2xl font-semibold mb-2">Log In</h2>
-            <button onClick={handleCancel}>
-              <img src={ImagesAndIcons.xIcon} alt="" />
-            </button>
-          </div>
-          <div className="flex items-center justify-center">
-            <img src={ImagesAndIcons.membershipUpgradeSuccessful} alt="" />
-          </div>
-          <h2 className="text-2xl text-center font-semibold my-11">Log In</h2>
-          <Button
-            type="red"
-            label="Go To Dashboard"
-            className="font-semibold  rounded-[55px] py-6 text-xl my-11"
-          />
-        </div>
-      </Modal>
+    <div className="py-9 px-8 lato max-w-lg mx-auto">
+      <div className="flex items-center justify-center">
+        <img src={ImagesAndIcons.membershipUpgradeSuccessful} alt="" />
+      </div>
+      <h2 className="text-2xl text-center font-semibold my-6">
+        Membership payment received
+      </h2>
+      {paystackReference ? (
+        <p className="text-center text-sm text-[#585858] mb-4">
+          Reference: <span className="font-mono">{paystackReference}</span>
+        </p>
+      ) : null}
+      <p className="text-center text-base text-[#585858] mb-8">
+        Thank you. Your membership will update once payment is confirmed.
+      </p>
+      <Button
+        type="red"
+        label="Go To Dashboard"
+        className="font-semibold  rounded-[55px] py-6 text-xl my-4"
+        handleClick={() => navigate(routes.dashboard)}
+      />
+    </div>
   );
-};
-
-export default MembershipUpgradeSuccessful;
+}
